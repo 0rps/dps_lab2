@@ -1,0 +1,16 @@
+<table style="border: 1px">
+<tr>
+		<td> name </td>
+		<td> email </td>
+		<td> phone </td>
+		<td> password </td>
+	</tr>
+{% for i in users %}
+	<tr>
+		<td> {{ i.name }} </td>
+		<td> {{ i.email }} </td>
+		<td> {{ i.phone }} </td>
+		<td> {{ i.password }} </td>
+	</tr>
+{% endfor %}
+</table>
