@@ -51,6 +51,7 @@ class Authcode(models.Model):
     user = models.ForeignKey(User)
     code = models.CharField(max_length=64)
     creationTime = models.DateTimeField()
+    redirect_uri = models.URLField()
 
     def generateCode(self):
         self.code = hashlib.md5(self.user.email + self.client_id + str(datetime.now().microsecond)).hexdigest()
@@ -116,6 +117,7 @@ class Token(models.Model):
         result = { }
         result['access_token'] = self.accessToken
         result['refresh_token'] = self.refreshToken
+        result['token_type'] = "Bearer"
         result['expires_in'] = str(20*60)
         return json.dumps(result)
 

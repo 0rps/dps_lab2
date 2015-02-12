@@ -56,6 +56,7 @@ def errorUnathourized(redirect_uri):
 def errorInvalidRequestJSON(redirect_uri=None):
     j = json.dumps({"error": "invalid_request"})
     debug("invalid_request")
+    return HttpResponseBadRequest(j, content_type="application/json")
     if redirect_uri is None:
         return HttpResponseBadRequest(j, content_type="application/json")
     else:
@@ -64,6 +65,7 @@ def errorInvalidRequestJSON(redirect_uri=None):
 def errorUnsupportedGrantJSON(redirect_uri=None):
     j = json.dumps({"error": "unsupported_grant_type"})
     debug("unsupp_grant_type")
+    return HttpResponseBadRequest(j, content_type="application/json")
     if redirect_uri is None:
         return HttpResponseBadRequest(j, content_type="application/json")
     else:
@@ -72,6 +74,7 @@ def errorUnsupportedGrantJSON(redirect_uri=None):
 def errorInvalidGrantJSON(redirect_uri=None):
     j = json.dumps({"error": "invalid_grant"})
     debug("invalid_grant")
+    return HttpResponseBadRequest(j, content_type="application/json")
     if redirect_uri is None:
         return HttpResponseBadRequest(j, content_type="application/json")
     else:
@@ -80,6 +83,7 @@ def errorInvalidGrantJSON(redirect_uri=None):
 def errorInvalidClientJSON(redirect_uri=None):
     j = json.dumps({"error": "invalid_client"})
     debug("invalid_client")
+    return HttpResponseBadRequest(j, content_type="application/json")
     if redirect_uri is None:
         return HttpResponseBadRequest(j, content_type="application/json")
     else:
@@ -98,13 +102,15 @@ def authcode(request):
 
 
         if resp_type is None or client_id is None:
-            HttpResponseRedirect(errorInvalidRequest(redirect_uri))
+            return HttpResponseRedirect(errorInvalidRequest(redirect_uri))
 
         if resp_type != 'code':
-            HttpResponseRedirect(errorResponceType(redirect_uri))
+            return HttpResponseRedirect(errorResponceType(redirect_uri))
 
         if client_id != real_client_id:
-            HttpResponseRedirect(errorAccessDenied(redirect_uri))
+            return HttpResponseRedirect(errorAccessDenied(redirect_uri))
+
+        debug("client_id = " + client_id)
 
         form = forms.SigninForm()
         form.fields['redirect_uri'].initial = redirect_uri
@@ -117,6 +123,7 @@ def authcode(request):
         if models.authorizeUser(data['email'], data['password']):
             user = models.getUser(data['email'])
             code = models.Authcode(user=user)
+            code.redirect_uri = data['redirect_uri']
             code.generateCode()
             code.save()
             url = data['redirect_uri'] + '?code=' + code.code
@@ -162,7 +169,7 @@ def handleRefreshTokenRequest(request):
 
     token = models.getToken(refresh_token)
     if token is not None:
-        token.init(token.user)
+        token.init()
         token.save()
         return HttpResponse(token.json(), content_type="application/json")
 
@@ -186,6 +193,9 @@ def handleAccessTokenRequest(request):
     if code is None:
         return errorInvalidGrantJSON(redirect_uri)
 
+    if code.redirect_uri != redirect_uri:
+        return errorInvalidGrantJSON(None)
+
     token = models.Token(user=code.user)
     token.init()
     token.save()
@@ -194,7 +204,7 @@ def handleAccessTokenRequest(request):
 
     debug("access_token = " + token.accessToken)
 
-    return HttpResponseRedirect(redirect_uri, token.json(), content_type="application/json")
+    return HttpResponse(content=token.json(), content_type="application/json")
 
 
 def handleMeRequest(request):
@@ -318,21 +328,21 @@ def handleDetailRequest(request, id):
 @csrf_exempt
 def handleTokenRequest(request):
     if request.method == 'POST':
+
         post = request.POST
-        redirect_uri = post.get("redirect_uri")
 
         if not httpBasicAuth(request):
-            return errorInvalidClientJSON(redirect_uri)
+            return errorInvalidClientJSON()
 
         type = post.get('grant_type')
 
         if type == 'refresh_token':
             return handleRefreshTokenRequest(request)
 
-        if type == 'access_token':
-            return handleAccessTokenRequest()
+        if type == 'authorization_code':
+            return handleAccessTokenRequest(request)
 
-        return errorUnsupportedGrantJSON(redirect_uri)
+        return errorUnsupportedGrantJSON()
 
-    return HttpResponseBadRequest()
+    return HttpResponseBadRequest("ONLY POST!")
 
